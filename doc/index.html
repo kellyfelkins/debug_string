@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>debug_string: test failures done better</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <style type="text/css">
+        @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+        @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+        @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+        body { font-family: 'Droid Serif'; }
+        h1, h2, h3 {
+            font-family: 'Yanone Kaffeesatz';
+            font-weight: normal;
+        }
+        .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+    </style>
+</head>
+<body>
+<textarea id="source">
+
+class: center, middle
+
+# debug_string
+
+A humble pattern that makes test
+failures easier to read.
+
+
+---
+
+# The problem, part 1:
+```
+kelly@tarth:~/workspace/debug_string_demo (master *)$ rspec spec/models/club_spec.rb 
+F
+
+Failures:
+
+  1) Club#members knows about its members
+     Failure/Error: expect(book_club.members).to eq([alice, blake, chuck])
+       
+       expected: [#<Person id: 1, first_name: "alice", last_name: nil, email: nil, created_at: "2015-03-29 23:40:17", updated_at: "2015-03-29 23:40:17">, #<Person id: 2, first_name: "blake", last_name: nil, email: nil, created_at: "2015-03-29 23:40:17", updated_at: "2015-03-29 23:40:17">, #<Person id: 3, first_name: "chuck", last_name: nil, email: nil, created_at: "2015-03-29 23:40:17", updated_at: "2015-03-29 23:40:17">]
+            got: #<ActiveRecord::Associations::CollectionProxy [#<Person id: 1, first_name: "alice", last_name: nil, email: nil, created_at: "2015-03-29 23:40:17", updated_at: "2015-03-29 23:40:17">, #<Person id: 2, first_name: "blake", last_name: nil, email: nil, created_at: "2015-03-29 23:40:17", updated_at: "2015-03-29 23:40:17">]>
+       
+       (compared using ==)
+       
+       Diff:
+       
+       
+       @@ -1,20 +1,13 @@
+       -[#<Person:0x007fe194f26520
+       +[#<Person:0x007fe199bb0e18
+          id: 1,
+          first_name: "alice",
+          last_name: nil,
+          email: nil,
+          created_at: Sun, 29 Mar 2015 23:40:17 UTC +00:00,
+          updated_at: Sun, 29 Mar 2015 23:40:17 UTC +00:00>,
+```
+---
+
+# The problem, part 2:
+
+```
+       - #<Person:0x007fe194e5de90
+       + #<Person:0x007fe199bb0be8
+          id: 2,
+          first_name: "blake",
+       -  last_name: nil,
+       -  email: nil,
+       -  created_at: Sun, 29 Mar 2015 23:40:17 UTC +00:00,
+       -  updated_at: Sun, 29 Mar 2015 23:40:17 UTC +00:00>,
+       - #<Person:0x007fe194e4e670
+       -  id: 3,
+       -  first_name: "chuck",
+          last_name: nil,
+          email: nil,
+          created_at: Sun, 29 Mar 2015 23:40:17 UTC +00:00,
+       
+     # ./spec/models/club_spec.rb:16:in `block (3 levels) in <top (required)>'
+
+Finished in 0.06721 seconds (files took 1.24 seconds to load)
+1 example, 1 failure
+
+Failed examples:
+
+rspec ./spec/models/club_spec.rb:5 # Club#members knows about its members
+
+kelly@tarth:~/workspace/debug_string_demo (master *%)$ 
+```
+
+---
+
+class: center, middle
+Too much noise, too little signal.
+
+---
+
+# Same test, with debug_string:
+
+```
+kelly@tarth:~/workspace/debug_string_demo (master *)$ rspec spec/models/club_spec.rb 
+F
+
+Failures:
+
+  1) Club#members knows about its members
+     Failure/Error: expect(book_club.members.map(&:debug_string)).to eq(%w|alice blake chuck|)
+       
+       expected: ["alice", "blake", "chuck"]
+            got: ["alice", "blake"]
+       
+       (compared using ==)
+     # ./spec/models/club_spec.rb:17:in `block (3 levels) in <top (required)>'
+
+Finished in 0.09202 seconds (files took 1.26 seconds to load)
+1 example, 1 failure
+
+Failed examples:
+
+rspec ./spec/models/club_spec.rb:5 # Club#members knows about its members
+
+kelly@tarth:~/workspace/debug_string_demo (master *)$ 
+```
+
+---
+# components: debug_string method
+
+1. string representation of object, like `to_s` or `inspect`
+2. unique enough for _tests_
+
+---
+
+# def debug_string
+
+```ruby
+class Person < ActiveRecord::Base
+
+  # snip
+
+  def debug_string
+    first_name # or [first_name, last_name].compact.join('_')
+  end
+end
+```
+
+---
+
+# def debug_string
+
+```ruby
+class Club < ActiveRecord::Base
+
+  # snip
+
+  def debug_string
+    name.gsub(/\W/, '_')  # you really don't want spaces in your strings
+  end
+end
+
+```
+
+---
+
+# def debug_string
+
+```ruby
+class Membership < ActiveRecord::Base
+
+  # snip
+
+  def debug_string
+
+    # build them up from the debug_strings of associated objects
+
+    "#{person.debug_string}_in_#{club.debug_string}"
+  end
+end
+```
+---
+# components: debug_string in your tests
+
+Instead of:
+```ruby
+    it 'knows about its members' do
+      # snip
+
+      expect(book_club.members).to eq([alice, blake, chuck])
+    end
+```
+do this:
+```ruby
+    it 'knows about its members' do
+      # snip
+
+      expect(book_club.members.map(&:debug_string)).to eq(%w|alice blake chuck|)
+    end
+```
+---
+# and in the rails console
+
+```
+2.1.5 :016 > puts Membership.all.map(&:debug_string)
+# snip
+kelly_in_book_club
+jane_in_gardening
+kelly_in_gardening
+ => nil 
+2.1.5 :017 > 
+```
+---
+# best practices
+
+1. make them unique in the test world, not necessarily for production
+2. keep them concise
+3. when helpful, build them up from associated objects
+4. no spaces, so that you can use the concise `%w()` arrays
+5. be thoughtful -- if you change the debug_string method, tests will break
+
+---
+class: center, middle
+
+# happy testing
+
+
+</textarea>
+<script src="https://gnab.github.io/remark/downloads/remark-latest.min.js">
+</script>
+<script>
+    var slideshow = remark.create();
+</script>
+</body>
+</html>
