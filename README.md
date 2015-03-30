@@ -1,4 +1,6 @@
 Introduction to `debug_string`
 ==============================
 
-Short presentation on the `debug_string` pattern.
+A [short presentation][1] on the `debug_string` pattern.
+
+[1]: http://kellyfelkins.github.io/debug_string/#1
